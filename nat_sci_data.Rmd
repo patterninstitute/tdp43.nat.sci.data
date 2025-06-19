@@ -3,6 +3,8 @@ title: 'Analysis and Figures | Nature Scientific Data Manuscript'
 author: 'Ismail Gbadamosi, Sandra Binias, Bartłomiej Gielniewski, Ramiro Magno, Isabel Duarte, Ali Jawaid'
 date: '`r Sys.Date()`'
 output: bookdown::html_vignette2
+vignette: >
+  %\VignetteIndexEntry{Analysis and Figures | Nature Scientific Data Manuscript}
 ---
 
 ```{r setup, include = FALSE}
@@ -47,22 +49,26 @@ get_tpm_and_counts <- function() {
   ## Expression data normalized (TPMs)
   tpm <-
     tdp43.nsc34.rnaseq::gene_expression(unit = c("tpm"), format = "long") |>
-    dplyr::left_join(tdp43.nsc34.rnaseq::samples[c("sample_id", "intervention")], by = "sample_id")
+    dplyr::left_join(tdp43.nsc34.rnaseq::samples[c("sample_id", 
+                                                   "intervention")], 
+                     by = "sample_id")
   
   ## Expression raw counts
   counts <-
     tdp43.nsc34.rnaseq::gene_expression(unit = "counts", format = "long") |>
-    dplyr::left_join(tdp43.nsc34.rnaseq::samples[c("sample_id", "intervention")], by = "sample_id")
+    dplyr::left_join(tdp43.nsc34.rnaseq::samples[c("sample_id", 
+                                                   "intervention")], 
+                     by = "sample_id")
   
   ## Join counts and TPMs
-  counts_tpm <- dplyr::full_join(counts,
-                                 tpm,
-                                 by = c("gene_name", "sample_id", "intervention"))
+  counts_tpm <- 
+    dplyr::full_join(counts, tpm,
+                     by = c("gene_name", "sample_id", "intervention"))
   
   ## Add gene biotype (coding or non-coding)
   counts_tpm2 <- dplyr::left_join(
     counts_tpm,
-    tdp43.nsc34.rnaseq::mgi_annotation,
+    tdp43.nsc34.rnaseq::gene_annotation,
     by = dplyr::join_by(gene_name == marker_symbol),
     relationship = "many-to-many"
   ) |>
@@ -89,22 +95,23 @@ get_tpm_and_counts <- function() {
 exprs_counts_tpm <- get_tpm_and_counts()
 
 ## Counts matrix 
-counts_matrix <- tdp43.nsc34.rnaseq::gene_expression(unit = c("counts"), format = "wide")
+counts_matrix <- 
+  tdp43.nsc34.rnaseq::gene_expression(unit = c("counts"), format = "wide")
 
-# Apply a regularized log transformation (a variance stabilizing transformation) to the gene expression count matrix (used for PCA, clustering analyses below). Please see ?DESeq2::rlog for more details.
+# Apply a regularized log transformation (a variance stabilizing transformation)
+# to the gene expression count matrix (used for PCA, clustering analyses below).
+# Please see ?DESeq2::rlog for more details.
  # NOTE: This step might take up to 1 minute. 
 counts_rlg <- DESeq2::rlog(counts_matrix)
 
 ```
 
-
 ### Tardbp gene expression
 
-
 Here we take a quick look at Tardbp expression (TPMs) across all samples,
-colored by experimental condition. This allows the  validation of the experimental design, 
-showing that the genetic interventions applied to the TDP43 gene in each experimental
-group were successful.  
+colored by experimental condition. This allows the  validation of the 
+experimental design, showing that the genetic interventions applied to 
+the TDP43 gene in each experimental group were successful.  
 
 
 ```{r exprs}
@@ -118,14 +125,14 @@ exprs_counts_tpm |>
   labs(title='Tardbp expression')
 ```
 
-
 ### PCA Analysis
 
 Confirm that the experimental conditions are the major sources of variation.
 
 ```{r pca}
 
-# PCA calculation using the Regularized log transformed counts (variance stabilizing method))
+# PCA calculation using the Regularized log transformed counts 
+# (variance stabilizing method))
 pca <- prcomp(t(counts_rlg))
 
 # Extract the components
@@ -133,9 +140,10 @@ components <- pca[["x"]]
 components <- as_tibble(components, rownames = "sample_id")
 
 # Add sample annotations to components
-components_annot <- dplyr::left_join(components,
-                                     as.data.frame(tdp43.nsc34.rnaseq::samples), 
-                                     by = "sample_id") 
+components_annot <- 
+  dplyr::left_join(components,
+                   as.data.frame(tdp43.nsc34.rnaseq::samples), 
+                   by = "sample_id") 
 
 # Calculate the % variance per component
 pca_percent_var <- round(pca$sdev^2/sum(pca$sdev^2)*100)
@@ -174,15 +182,18 @@ pheatmap::pheatmap(rld_cor)
 
 Check that the normalization of the raw counts has been successful.
 
-```{r distrib_and_normaliz}
+```{r distrib_and_normaliz, out.width='100%', fig.height=9, fig.width=10}
 
-# Boxplot
-(exprs_counts_tpm |>
+## Boxplots
+p_boxplot1 <- 
+  (exprs_counts_tpm |>
    filter(counts > 0) |>
   ggplot(aes(x = sample_id, y = log2(counts))) +
   geom_boxplot(aes(fill = intervention)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
-) / 
+)
+
+p_boxplot2 <-
  (exprs_counts_tpm |>
    filter(tpm > 0) |>
    ggplot(aes(x = sample_id, y = log2(tpm))) +
@@ -190,51 +201,47 @@ Check that the normalization of the raw counts has been successful.
    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
  )
 
-
-# Violin plot
-(exprs_counts_tpm |>
-    filter(counts > 0) |>
-    ggplot(aes(x = sample_id, y = log2(counts))) +
-    geom_violin(aes(fill = intervention)) +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) 
-) / 
+## Density plots
+p_densityplot1 <- 
   (exprs_counts_tpm |>
-     filter(tpm > 0) |>
-     ggplot(aes(x = sample_id, y = log2(tpm))) +
-     geom_violin(aes(fill = intervention)) +
-     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-   )
-
-# Density plot
-(exprs_counts_tpm |>
      filter(counts > 0) |>
      ggplot(aes(x = log2(counts))) +
      geom_density(aes(fill = intervention), alpha = 0.5)
-) / 
+)
+
+p_densityplot2 <-
   (exprs_counts_tpm |>
      filter(tpm > 0) |>
      ggplot(aes(x = log2(tpm))) +
      geom_density(aes(fill = intervention), alpha=0.5)
   )
 
+## Combine boxplots and density plots into a figure with panels labeled
+p_boxplot_and_density <-
+  patchwork::wrap_plots(
+    p_boxplot1, p_boxplot2,
+    p_densityplot1, p_densityplot2,
+    nrow = 4,
+    heights = c(3,3,3,3)
+  ) +
+  patchwork::plot_annotation(tag_levels = list(c("(a)", "", "(b)", ""))) +
+  theme(plot.tag = element_text(size = 14, face = "bold"))
 
-# Ridge plot
-(exprs_counts_tpm |>
-    filter(counts > 0) |>
-    ggplot(aes(x = log2(counts), y = intervention, fill = intervention)) +
-    ggridges::geom_density_ridges(alpha = 0.8) +
-    # theme_minimal() +
-    theme(axis.text.y = element_text(size = 12)) +
-    theme(legend.position = "none")
-) /
-  (exprs_counts_tpm |>
-     filter(tpm > 0) |>
-     ggplot(aes(x = log2(tpm), y = intervention, fill = intervention)) +
-     ggridges::geom_density_ridges(alpha=0.8) +
-     # theme_minimal() +
-     theme(axis.text.y = element_text(size = 12)) +
-     theme(legend.position = "none")
-  )
+## Print plots
+p_boxplot_and_density
+
+## Save plot to file 
+# Uncomment when needed
+
+# ggsave(plot = p_boxplot_and_density,
+#   filename = "output/boxplot_density.pdf", 
+#   width = 10, height = 9)
+
+```
+
+### Gene tally information
+
+```{r gene_info}
 
 #
 ## Total number of genes measured
